@@ -1,0 +1,195 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "RepoRadar AI Developer Intelligence API",
+    "version": "1.0.0",
+    "description": "API for search optimization, repository architectural evaluation, and real-time developer news summaries powered by Google Gemini and GitHub."
+  },
+  "servers": [
+    {
+      "url": "/",
+      "description": "Current active environment"
+    }
+  ],
+  "paths": {
+    "/api/search": {
+      "post": {
+        "summary": "AI Repository Radar Search",
+        "operationId": "searchRadar",
+        "description": "Searches for the best open-source repositories or developer tools matching a natural language prompt. Runs a multi-stage intent extraction, executes parallel GitHub queries, and ranks the results using Gemini.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "query": {
+                    "type": "string",
+                    "description": "Plain-text natural language description of what you are looking to build or what software/library you need (e.g. 'A state-management library for React that is extremely simple and lightweight')."
+                  }
+                },
+                "required": ["query"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "A ranked recommendation evaluation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "explanation": {
+                      "type": "string",
+                      "description": "A Markdown formatted summary explaining the AI's intent mapping, top findings, and overall recommendation reasoning."
+                    },
+                    "repos": {
+                      "type": "array",
+                      "description": "A list of GitHub repository objects that match and were ranked by the AI.",
+                      "items": {
+                        "type": "object"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid payload parameters."
+          },
+          "500": {
+            "description": "Internal server error."
+          }
+        }
+      }
+    },
+    "/api/analyze": {
+      "post": {
+        "summary": "Deep Repository Architectural Assessment",
+        "operationId": "analyzeRepository",
+        "description": "Pulls a repository's README and details from GitHub, then executes a deep, structured architectural analysis using Gemini, assessing target audience, maturity, integration effort, and alternatives.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "owner": {
+                    "type": "string",
+                    "description": "The GitHub owner or organization name (e.g., 'facebook')."
+                  },
+                  "repo": {
+                    "type": "string",
+                    "description": "The GitHub repository name (e.g., 'react')."
+                  }
+                },
+                "required": ["owner", "repo"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Structured repository analysis.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "whatItDoes": {
+                      "type": "string",
+                      "description": "A concise paragraph explaining what the project is and its value proposition."
+                    },
+                    "targetAudience": {
+                      "type": "string",
+                      "description": "An explanation of who should use this library/framework."
+                    },
+                    "nonTargetAudience": {
+                      "type": "string",
+                      "description": "An explanation of who should avoid this library/framework."
+                    },
+                    "maturity": {
+                      "type": "string",
+                      "enum": ["experimental", "active", "stable", "stale", "abandoned"],
+                      "description": "Current lifecycle stage of the project."
+                    },
+                    "alternatives": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "description": "Notable alternative packages."
+                    },
+                    "integrationEffort": {
+                      "type": "string",
+                      "enum": ["low", "medium", "high"],
+                      "description": "Project implementation complexity."
+                    },
+                    "integrationReasoning": {
+                      "type": "string",
+                      "description": "Detailed reasoning for why this integration level is expected."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid body params."
+          },
+          "500": {
+            "description": "Internal server or API error."
+          }
+        }
+      }
+    },
+    "/api/feed": {
+      "get": {
+        "summary": "Real-time Grounded Developer Intelligence Feed",
+        "operationId": "getDeveloperFeed",
+        "description": "Performs a live web-grounded search query on latest framework blogs, engineering releases, Hacker News, and developer discussions, synthesizing them into a high-quality summary feed using Gemini.",
+        "responses": {
+          "200": {
+            "description": "A list of curated high-quality developer news items.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "title": {
+                        "type": "string",
+                        "description": "Headline of the discussion or news item."
+                      },
+                      "summary": {
+                        "type": "string",
+                        "description": "A 2-3 sentence AI summary synthesizing the developer news item."
+                      },
+                      "category": {
+                        "type": "string",
+                        "description": "E.g., 'AI Ecosystem', 'Trending Discussions', 'Dev Blogs & Releases'."
+                      },
+                      "citation": {
+                        "type": "string",
+                        "description": "Reference URL or source link."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Failed to compile the real-time feed."
+          }
+        }
+      }
+    }
+  }
+}
