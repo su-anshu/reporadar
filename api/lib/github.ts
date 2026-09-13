@@ -50,9 +50,10 @@ export async function searchRepos(
   query: string,
   sort: 'stars' | 'updated' | '' = '',
   order: 'desc' | 'asc' = 'desc',
-  perPage = 30
+  perPage = 30,
+  page = 1
 ): Promise<SearchResult> {
-  let url = `https://api.github.com/search/repositories?q=${encodeURIComponent(query)}&per_page=${perPage}`;
+  let url = `https://api.github.com/search/repositories?q=${encodeURIComponent(query)}&per_page=${perPage}&page=${page}`;
   if (sort) url += `&sort=${sort}&order=${order}`;
 
   const res = await fetchWithRetry(url);

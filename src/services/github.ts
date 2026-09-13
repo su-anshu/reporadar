@@ -112,12 +112,18 @@ async function fetchWithRetry(url: string, options: RequestInit = {}, retries = 
   });
 }
 
-export async function searchRepos(query: string, sort: 'stars' | 'updated' | '' = '', order: 'desc' | 'asc' = 'desc', perPage = 30): Promise<SearchResult> {
-  const cacheKey = `search_${query}_${sort}_${order}_${perPage}`;
+export async function searchRepos(
+  query: string,
+  sort: 'stars' | 'updated' | '' = '',
+  order: 'desc' | 'asc' = 'desc',
+  perPage = 30,
+  page = 1
+): Promise<SearchResult> {
+  const cacheKey = `search_${query}_${sort}_${order}_${perPage}_${page}`;
   const cached = await getCached<SearchResult>(cacheKey, 30 * 60 * 1000); // 30 min
   if (cached) return cached;
 
-  let url = `https://api.github.com/search/repositories?q=${encodeURIComponent(query)}&per_page=${perPage}`;
+  let url = `https://api.github.com/search/repositories?q=${encodeURIComponent(query)}&per_page=${perPage}&page=${page}`;
   if (sort) url += `&sort=${sort}&order=${order}`;
 
   const res = await fetchWithRetry(url);

@@ -1,5 +1,5 @@
 import { GoogleGenAI, Type } from '@google/genai';
-import { searchRepos } from './github';
+import { searchRepos, getReadme, getRepo } from './github';
 import { AskResult, GitHubRepo } from '../../src/types';
 
 export function getGeminiApiKey(): string {
@@ -169,7 +169,11 @@ export async function askRadarBackend(query: string): Promise<AskResult> {
   const intentObj = await extractAskIntent(query);
   const candidatesMap = new Map<string, GitHubRepo>();
 
-  for (const q of (intentObj.github_queries || []).slice(0, 3)) {
+  const queries = (intentObj.github_queries || []).slice(0, 4).map((q: string) => 
+    q.includes('archived:') ? q : `${q} archived:false`
+  );
+
+  for (const q of queries) {
     try {
       const res = await searchRepos(q, 'stars', 'desc', 10);
       res.items.forEach(r => candidatesMap.set(r.full_name, r));
@@ -186,18 +190,34 @@ export async function askRadarBackend(query: string): Promise<AskResult> {
     };
   }
 
-  const ranked = await rankCandidates(intentObj, candidateList.slice(0, 15));
+  // Grounding: Fetch README snippets in parallel for candidates
+  const candidatesToEvaluate = candidateList.slice(0, 16);
+  const candidatesWithReadme = await Promise.all(
+    candidatesToEvaluate.map(async (repo) => {
+      try {
+        const readme = await getReadme(repo.owner.login, repo.name);
+        return {
+          ...repo,
+          readme: readme ? readme.slice(0, 2500) : ""
+        };
+      } catch {
+        return { ...repo, readme: "" };
+      }
+    })
+  );
+
+  const ranked = await rankCandidates(intentObj, candidatesWithReadme);
   const rankedMap = new Map<string, number>();
   ranked.forEach((item: any) => rankedMap.set(item.full_name, item.score || 0));
 
   const sortedRepos = candidateList.sort((a, b) => (rankedMap.get(b.full_name) || 0) - (rankedMap.get(a.full_name) || 0));
 
   const top3Names = sortedRepos.slice(0, 3).map(r => `\`${r.full_name}\``).join(', ');
-  const explanation = `### AI Search Summary\n\n**Intent**: ${intentObj.intent}\n\n**Top Recommendations**: ${top3Names}\n\nEvaluated ${candidateList.length} candidate repositories using **${getSelectedGeminiModel()}** based on project activity, license, topic tags, and architectural fit.`;
+  const explanation = `### AI Search Summary\n\n**Intent**: ${intentObj.intent}\n\n**Top Recommendations**: ${top3Names}\n\nEvaluated ${candidateList.length} candidate repositories using **${getSelectedGeminiModel()}** grounded with real documentation, project activity, license, and architectural fit.`;
 
   return {
     explanation,
-    repos: sortedRepos.slice(0, 12)
+    repos: sortedRepos.slice(0, 15)
   };
 }
 

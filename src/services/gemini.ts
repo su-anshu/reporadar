@@ -1,5 +1,6 @@
 import { GoogleGenAI, Type } from '@google/genai';
-import { searchRepos } from './github';
+import { searchRepos, getReadme, getRepo } from './github';
+import { searchWebForRepos } from './websearch';
 import { AskStep, AskResult, GitHubRepo } from '../types';
 
 export function getGeminiApiKey(): string {
@@ -298,17 +299,42 @@ export async function askRadar(query: string, onStep: (step: AskStep) => void): 
   const intentObj = await extractAskIntent(query);
   onStep({ stage: 'intent', status: 'success', message: `Target intent: "${intentObj.intent}"` });
 
-  onStep({ stage: 'search', status: 'pending', message: 'Executing parallel search across GitHub...' });
+  onStep({ stage: 'search', status: 'pending', message: 'Executing parallel search across GitHub and web grounding...' });
   const candidatesMap = new Map<string, GitHubRepo>();
 
-  for (const q of (intentObj.github_queries || []).slice(0, 3)) {
-    try {
-      const res = await searchRepos(q, 'stars', 'desc', 10);
-      res.items.forEach(r => candidatesMap.set(r.full_name, r));
-    } catch (e) {
-      console.warn("Sub-query search warning:", q, e);
-    }
-  }
+  // 1. Prepare GitHub search queries with archived:false
+  const queries = (intentObj.github_queries || []).slice(0, 4).map((q: string) => 
+    q.includes('archived:') ? q : `${q} archived:false`
+  );
+
+  const searchPromises = queries.map((q: string) =>
+    searchRepos(q, 'stars', 'desc', 10)
+      .then(res => res.items.forEach(r => candidatesMap.set(r.full_name, r)))
+      .catch(e => console.warn("Sub-query search warning:", q, e))
+  );
+
+  // 2. Web search grounding for community recommendations
+  const webQueries = (intentObj.web_queries || []).slice(0, 2);
+  const webPromise = webQueries.length > 0
+    ? searchWebForRepos(webQueries)
+        .then(async webHits => {
+          for (const hit of webHits.slice(0, 5)) {
+            if (!candidatesMap.has(`${hit.owner}/${hit.name}`)) {
+              try {
+                const repo = await getRepo(hit.owner, hit.name);
+                if (repo && !repo.archived) {
+                  candidatesMap.set(repo.full_name, repo);
+                }
+              } catch (e) {
+                // Ignore missing repo
+              }
+            }
+          }
+        })
+        .catch(e => console.warn("Web grounding warning:", e))
+    : Promise.resolve();
+
+  await Promise.allSettled([...searchPromises, webPromise]);
 
   const candidateList = Array.from(candidatesMap.values());
   onStep({ stage: 'search', status: 'success', message: `Discovered ${candidateList.length} candidate projects.` });
@@ -320,9 +346,26 @@ export async function askRadar(query: string, onStep: (step: AskStep) => void): 
     };
   }
 
-  onStep({ stage: 'rank', status: 'pending', message: `Architectural evaluation with Gemini (${getSelectedGeminiModel()})...` });
-  const ranked = await rankCandidates(intentObj, candidateList.slice(0, 15));
-  onStep({ stage: 'rank', status: 'success', message: 'Evaluation complete.' });
+  onStep({ stage: 'rank', status: 'pending', message: `Fetching READMEs and evaluating with Gemini (${getSelectedGeminiModel()})...` });
+
+  // 3. Grounding: Fetch README snippets in parallel for top candidates so Gemini evaluates real code/docs
+  const candidatesToEvaluate = candidateList.slice(0, 16);
+  const candidatesWithReadme = await Promise.all(
+    candidatesToEvaluate.map(async (repo) => {
+      try {
+        const readme = await getReadme(repo.owner.login, repo.name);
+        return {
+          ...repo,
+          readme: readme ? readme.slice(0, 2500) : ""
+        };
+      } catch {
+        return { ...repo, readme: "" };
+      }
+    })
+  );
+
+  const ranked = await rankCandidates(intentObj, candidatesWithReadme);
+  onStep({ stage: 'rank', status: 'success', message: 'Architectural evaluation complete.' });
 
   const rankedMap = new Map<string, number>();
   ranked.forEach((item: any) => rankedMap.set(item.full_name, item.score || 0));
@@ -330,11 +373,11 @@ export async function askRadar(query: string, onStep: (step: AskStep) => void): 
   const sortedRepos = candidateList.sort((a, b) => (rankedMap.get(b.full_name) || 0) - (rankedMap.get(a.full_name) || 0));
 
   const top3Names = sortedRepos.slice(0, 3).map(r => `\`${r.full_name}\``).join(', ');
-  const explanation = `### AI Search Summary\n\n**Intent**: ${intentObj.intent}\n\n**Top Recommendations**: ${top3Names}\n\nEvaluated ${candidateList.length} candidate repositories using **${getSelectedGeminiModel()}** based on project activity, license, topic tags, and architectural fit.`;
+  const explanation = `### AI Search Summary\n\n**Intent**: ${intentObj.intent}\n\n**Top Recommendations**: ${top3Names}\n\nEvaluated ${candidateList.length} candidate repositories using **${getSelectedGeminiModel()}** grounded with real documentation, project activity, license, and architectural fit.`;
 
   return {
     explanation,
-    repos: sortedRepos.slice(0, 12)
+    repos: sortedRepos.slice(0, 15)
   };
 }
 

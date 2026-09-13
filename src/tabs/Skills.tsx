@@ -20,11 +20,25 @@ export function SkillsTab() {
     setLoading(true);
     setError('');
     try {
-      // Fetch top 12 repositories tagged with 'mcp'
-      const res = await searchRepos('topic:mcp', 'stars', 'desc', 12);
+      // Fetch top 24 repositories tagged with 'mcp'
+      const res = await searchRepos('topic:mcp archived:false', 'stars', 'desc', 24);
       if (res.items && res.items.length > 0) {
-        const parsedSkills = await convertReposToMCPs(res.items);
-        setLiveSkills(parsedSkills);
+        try {
+          const parsedSkills = await convertReposToMCPs(res.items);
+          setLiveSkills(parsedSkills);
+        } catch (geminiErr) {
+          // Graceful fallback: convert raw GitHub repos into Skill objects if Gemini key is missing
+          const fallbackSkills: Skill[] = res.items.map(r => ({
+            id: `mcp-${r.id}`,
+            name: r.name,
+            category: 'MCP Servers',
+            description: r.description || 'Model Context Protocol tool on GitHub.',
+            tags: r.topics?.length ? r.topics.slice(0, 4) : ['mcp', 'agent'],
+            installCmd: `npx -y ${r.name.toLowerCase()}`,
+            repoUrl: r.html_url
+          }));
+          setLiveSkills(fallbackSkills);
+        }
       } else {
         throw new Error('No MCP repositories found on GitHub.');
       }

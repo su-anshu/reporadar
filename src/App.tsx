@@ -30,7 +30,7 @@ export function App() {
     <div className="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col font-sans selection:bg-cyan-500 selection:text-zinc-950">
       
       {/* Top Header */}
-      <Header onOpenSettings={() => setIsSettingsOpen(true)} />
+      <Header onOpenSettings={() => setIsSettingsOpen(true)} onOpenRepo={setSelectedRepo} />
 
       {/* Main Tab Navigation */}
       <nav className="border-b border-zinc-800/80 bg-zinc-950/60 sticky top-[57px] z-20 backdrop-blur-md">

@@ -10,7 +10,7 @@ import {
   GeminiModelInfo, 
   DEFAULT_GEMINI_MODELS 
 } from '../services/gemini';
-import { X, Eye, EyeOff, CheckCircle, AlertCircle, Loader2, Key, Sparkles, Cpu, RefreshCw, Bot } from 'lucide-react';
+import { X, Eye, EyeOff, CheckCircle, AlertCircle, Loader2, Key, Sparkles, Cpu, RefreshCw, Bot, Lock } from 'lucide-react';
 
 interface Props {
   isOpen: boolean;
@@ -19,6 +19,11 @@ interface Props {
 
 export function SettingsModal({ isOpen, onClose }: Props) {
   const [activeTab, setActiveTab] = useState<'gemini' | 'github'>('gemini');
+  
+  // Passcode Lock State
+  const [isLocked, setIsLocked] = useState(true);
+  const [inputPassword, setInputPassword] = useState('');
+  const [passwordError, setPasswordError] = useState('');
   
   // GitHub State
   const [token, setToken] = useState('');
@@ -37,6 +42,11 @@ export function SettingsModal({ isOpen, onClose }: Props) {
 
   useEffect(() => {
     if (isOpen) {
+      // Reset lock states when opened
+      setIsLocked(true);
+      setInputPassword('');
+      setPasswordError('');
+
       // Load stored values
       setToken(getGitHubToken());
       const key = getGeminiApiKey();
@@ -127,6 +137,16 @@ export function SettingsModal({ isOpen, onClose }: Props) {
     onClose();
   };
 
+  const handleVerifyPassword = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (inputPassword === 'Anshu@2026') {
+      setIsLocked(false);
+      setPasswordError('');
+    } else {
+      setPasswordError('Invalid credentials. Admin access denied.');
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
       <div className="bg-zinc-950 rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden border border-zinc-800 flex flex-col max-h-[90vh]">
@@ -141,8 +161,45 @@ export function SettingsModal({ isOpen, onClose }: Props) {
           </button>
         </div>
 
-        {/* Tab Switcher */}
-        <div className="flex border-b border-zinc-800 bg-zinc-950 px-5 pt-3 gap-3">
+        {isLocked ? (
+          <form onSubmit={handleVerifyPassword} className="p-6 space-y-5 text-center flex-1 flex flex-col justify-center items-center bg-zinc-950">
+            <div className="p-4 bg-zinc-900 border border-zinc-800 rounded-2xl text-cyan-400 mb-2">
+              <Lock className="w-8 h-8 text-cyan-400 animate-pulse" />
+            </div>
+            
+            <div className="space-y-1.5">
+              <h3 className="text-base font-bold text-white tracking-tight">Admin Authentication</h3>
+              <p className="text-xs text-zinc-400 max-w-xs mx-auto">This panel contains sensitive credentials and is locked. Enter the administrator passcode to proceed.</p>
+            </div>
+
+            <div className="w-full max-w-xs space-y-3">
+              <input
+                type="password"
+                value={inputPassword}
+                onChange={e => setInputPassword(e.target.value)}
+                placeholder="Enter passcode..."
+                className="w-full text-center px-4 py-2.5 border border-zinc-800 rounded-xl bg-zinc-900 text-zinc-100 focus:outline-none focus:border-cyan-500/50 text-xs font-mono tracking-widest placeholder:tracking-normal placeholder:text-zinc-600"
+                autoFocus
+              />
+              <button
+                type="submit"
+                className="w-full py-2.5 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-zinc-950 font-bold rounded-xl text-xs transition-all cursor-pointer shadow-lg shadow-cyan-500/10"
+              >
+                Authenticate Admin
+              </button>
+            </div>
+
+            {passwordError && (
+              <div className="p-3 bg-red-950/40 text-red-300 border border-red-800/50 rounded-xl text-xs flex items-center gap-2 max-w-xs mx-auto animate-bounce">
+                <AlertCircle className="w-4 h-4 shrink-0 text-red-400 animate-pulse" />
+                <span>{passwordError}</span>
+              </div>
+            )}
+          </form>
+        ) : (
+          <>
+            {/* Tab Switcher */}
+            <div className="flex border-b border-zinc-800 bg-zinc-950 px-5 pt-3 gap-3">
           <button
             onClick={() => setActiveTab('gemini')}
             className={`pb-2.5 text-xs font-bold transition-all border-b-2 flex items-center gap-1.5 cursor-pointer ${
@@ -345,6 +402,8 @@ export function SettingsModal({ isOpen, onClose }: Props) {
             Save Settings
           </button>
         </div>
+          </>
+        )}
       </div>
     </div>
   );
